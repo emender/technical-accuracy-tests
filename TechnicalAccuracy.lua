@@ -1,6 +1,6 @@
 -- TechnicalAccuracy.lua
 
--- This test verifies if a guide is technically accurate. For example, it --
+-- This test verifies if a guide is technically accurate. For example, it
 -- reports non-functional or blacklisted external links.
 
 -- Copyright (C) 2014-2017 Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky
