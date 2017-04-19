@@ -1,4 +1,4 @@
--- ExternalLinks.lua
+-- TechnicalAccuracy.lua
 
 -- Emender test to verify that all external links are functional
 -- Copyright (C) 2014-2017 Jaromir Hradilek, Pavel Vomacka
@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU General Public License  along
 -- with this program. If not, see <http://www.gnu.org/licenses/>.
 
-ExternalLinks = {
+TechnicalAccuracy = {
     metadata = {
         description = "Verify that all external links are functional.",
         authors = "Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky",
@@ -28,13 +28,13 @@ ExternalLinks = {
 --
 --- Function which runs first. This is place where all objects are created.
 --
-function ExternalLinks.setUp()
+function TechnicalAccuracy.setUp()
 end
 
 --
 --- Entry point to the test itself
 --
-function ExternalLinks.testExternalLinks()
+function TechnicalAccuracy.testExternalLinks()
     pass("OK")
 end
 
