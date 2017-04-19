@@ -1,7 +1,8 @@
 -- TechnicalAccuracy.lua
 
--- This test verifies if a guide is technically accurate. For example, it
+-- This test verifies if a guide is technically accurate. For example, it --
 -- reports non-functional or blacklisted external links.
+
 -- Copyright (C) 2014-2017 Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky
 
 -- This program is free software:  you can redistribute it and/or modify it
@@ -18,7 +19,7 @@
 
 TechnicalAccuracy = {
     metadata = {
-        description = "Verify that all external links are functional.",
+        description = "This test verifies if a guide is technically accurate. For example, it reports non-functional or blacklisted external links.",
         authors = "Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky",
         emails = "jhradilek@redhat.com, pvomacka@redhat.com, ptisnovs@redhat.com",
         changed = "2017-04-19",
