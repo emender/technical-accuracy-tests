@@ -25,6 +25,7 @@ TechnicalAccuracy = {
         changed = "2017-04-19",
         tags = {"DocBook", "Release"}
     },
+    requires = {"curl", "xmllint", "xmlstarlet"},
 }
 
 --
