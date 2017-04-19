@@ -1,7 +1,8 @@
 -- TechnicalAccuracy.lua
 
--- Emender test to verify that all external links are functional
--- Copyright (C) 2014-2017 Jaromir Hradilek, Pavel Vomacka
+-- This test verifies if a guide is technically accurate. For example, it
+-- reports non-functional or blacklisted external links.
+-- Copyright (C) 2014-2017 Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky
 
 -- This program is free software:  you can redistribute it and/or modify it
 -- under the terms of  the  GNU General Public License  as published by the
@@ -31,9 +32,9 @@ TechnicalAccuracy = {
 function TechnicalAccuracy.setUp()
 end
 
---
---- Entry point to the test itself
---
+---
+--- Reports non-functional or blacklisted external links.
+---
 function TechnicalAccuracy.testExternalLinks()
     pass("OK")
 end
