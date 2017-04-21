@@ -244,6 +244,33 @@ end
 
 
 
+--
+-- Replaces the ftp:// protocol specification by http://
+--
+function ftp2httpUrl(link)
+    if link:startsWith("ftp://") then
+        return link:gsub("^ftp://", "http://")
+    else
+        return link
+    end
+end
+
+
+
+--
+-- Check if one selected link is accessible.
+--
+function tryOneLink(linkToCheck)
+    local command = TechnicalAccuracy.curlCommand .. TechnicalAccuracy.curlDisplayHttpStatusAndEffectiveURL .. linkToCheck .. " | tail -n 1"
+    local output = execCaptureOutputAsTable(command)
+    -- this function returns truth value only if:
+    -- output must be generated, it should contain just one line
+    -- and on the beginning of this line is HTTP status code 200 OK
+    return output and #output==1 and string.startsWith(output[1], TechnicalAccuracy.HTTP_OK_CODE)
+end
+
+
+
 ---
 --- Reports non-functional or blacklisted external links.
 ---
@@ -252,6 +279,67 @@ function TechnicalAccuracy.testExternalLinks()
         pass("No links found.")
         return
     end
-    pass("OK")
+
+    -- Convert list of links into string and then check all links using curl.
+    local checkedLinks = TechnicalAccuracy.tryLinks(TechnicalAccuracy.convertListForMultiprocess())
+
+    -- Go through all links and print the results out.
+    for linkValue, result in pairs(checkedLinks) do
+        local exitCode     = result.httpCode
+        local originalUrl  = result.originalUrl
+        local effectiveUrl = result.effectiveUrl
+        if TechnicalAccuracy.isAnchor(linkValue) then
+            warn(linkValue .. " - Anchor")
+        elseif TechnicalAccuracy.mailOrFileLink(linkValue) then
+            -- Mail or file link - warn
+            warn(linkValue)
+        elseif TechnicalAccuracy.isLinkFromList(linkValue, TechnicalAccuracy.exampleList) then
+            -- Example or localhost - OK
+            warn(linkValue .. " - Example")
+        elseif TechnicalAccuracy.isLinkFromList(linkValue, TechnicalAccuracy.internalList) then
+            -- Internal link - FAIL
+            fail(linkValue .. " - Internal link")
+            link(linkValue, linkValue)
+        else
+            -- Check exit code of curl command.
+            if exitCode == TechnicalAccuracy.HTTP_OK_CODE or exitCode == TechnicalAccuracy.FTP_OK_CODE then
+                -- special case for FTP, please see CCS-1278
+                if linkValue:startsWith("ftp://") then
+                    local htmlLink = ftp2httpUrl(linkValue)
+                    if tryOneLink(htmlLink) then
+                        -- ftp link is ok AND http link is ok as well
+                        -- -> display suggestion to writer that he/she should use http:// instead of ftp://
+                        fail("Please use HTTP protocol instead of FTP")
+                        link("current: " .. linkValue, linkValue)
+                        link("suggested: " .. htmlLink, htmlLink)
+                    else
+                        -- only ftp:// link is accessible
+                        pass(linkValue)
+                    end
+                else
+                    pass(linkValue)
+                end
+            elseif exitCode == TechnicalAccuracy.FORBIDDEN then
+                warn("403 Forbidden")
+                if linkValue then
+                    link("Forbidden link " .. linkValue, linkValue)
+                else
+                    link("Forbidden", "link not set (strange)")
+                end
+            else
+                -- the URL is not accessible -> the test should fail
+                fail(originalUrl)
+
+                -- if the request has been redirected to another URL, show the original URL and redirected one
+                if originalUrl ~= effectiveUrl then
+                    link("URL in document: " .. originalUrl, originalUrl)
+                    link("Redirected URL: " .. effectiveUrl, effectiveUrl)
+                else
+                -- no redirection -> show the original URL as is written in the document
+                    link("URL to check: " .. originalUrl, originalUrl)
+                end
+            end
+        end
+    end
 end
 
