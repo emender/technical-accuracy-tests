@@ -83,8 +83,8 @@ end
 --
 --  @return table with links
 function TechnicalAccuracy.findLinks()
-    local links  = TestLinks.xmlObj:getAttributesOfElement("href", "link")
-    local ulinks = TestLinks.xmlObj:getAttributesOfElement("url",  "ulink")
+    local links  = TechnicalAccuracy.xmlInstance:getAttributesOfElement("href", "link")
+    local ulinks = TechnicalAccuracy.xmlInstance:getAttributesOfElement("url",  "ulink")
     if links then
         warn("link:  " .. #links)
     else
