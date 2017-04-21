@@ -192,6 +192,58 @@ end
 
 
 
+--
+--- Function that find all links to anchors.
+--
+--  @param link
+--  @return true if link is link to anchor, otherwise false.
+function TechnicalAccuracy.isAnchor(link)
+    -- If link has '#' at the beginning or if the link doesnt starts with protocol and contain '#' character
+    -- then it is link to anchor.
+    if link:match("^#") or (not link:match("^%w%w%w%w?%w?%w?://") and link:match("#")) then
+        return true
+    end
+
+    return false
+end
+
+
+
+--
+--- Checks whether link has prefix which says that this is mail or file, etc.
+--
+--  @param link
+--  @return true if link is with prefix or false.
+function TechnicalAccuracy.mailOrFileLink(link)
+    if link:match("^mailto:") or link:match("^file:") or link:match("^ghelp:")
+        or link:match("^install:") or link:match("^man:") or link:match("^help:") then
+        return true
+    else
+        return false
+    end
+end
+
+
+
+--
+--- Checks whether the link corresponds with one of patterns in given list.
+--
+--  @param link
+--  @param list
+--  @return true if pattern in list match link, false otherwise.
+function TechnicalAccuracy.isLinkFromList(link, list)
+    -- Go through all patterns in list.
+    for i, pattern in ipairs(list) do
+        if link:match(pattern) then
+            -- It is example or internal link.
+            return true
+        end
+    end
+    return false
+end
+
+
+
 ---
 --- Reports non-functional or blacklisted external links.
 ---
