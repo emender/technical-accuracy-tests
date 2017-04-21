@@ -34,6 +34,7 @@ TechnicalAccuracy = {
     forbiddenLinksTable = {},
     exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org",
                  "localhost", "127%.0%.0%.1", "::1"},
+    internalList = {},
     HTTP_OK_CODE = "200",
     FTP_OK_CODE = "226",
     FORBIDDEN = "403",
