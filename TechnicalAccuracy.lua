@@ -109,10 +109,37 @@ end
 
 
 
+--
+--- Convert table with links to the string where links are separated by new line.
+--  This format is used because bash function accepts this format.
+--
+--  @return string which contains all links separated by new line.
+function TechnicalAccuracy.convertListForMultiprocess()
+    local convertedLinks = ""
+
+    -- Go through all links and concatenate them. Put each link into double quotes
+    -- because of semicolons in links which ends bash command.
+    for _, link in pairs(TechnicalAccuracy.allLinks) do
+        -- Skip every empty line.
+        if not link:match("^$") then
+            convertedLinks = convertedLinks .. "\"" .. link .. "\"\n"
+        end
+    end
+
+    -- Remove last line break.
+    return convertedLinks:gsub("%s$", "")
+end
+
+
+
 ---
 --- Reports non-functional or blacklisted external links.
 ---
 function TechnicalAccuracy.testExternalLinks()
+    if table.isEmpty(TechnicalAccuracy.allLinks) then
+        pass("No links found.")
+        return
+    end
     pass("OK")
 end
 
