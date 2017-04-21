@@ -78,6 +78,37 @@ end
 
 
 
+--
+--- Parse links from the document.
+--
+--  @return table with links
+function TechnicalAccuracy.findLinks()
+    local links  = TestLinks.xmlObj:getAttributesOfElement("href", "link")
+    local ulinks = TestLinks.xmlObj:getAttributesOfElement("url",  "ulink")
+    if links then
+        warn("link:  " .. #links)
+    else
+        warn("no link tag found")
+    end
+    if ulinks then
+        warn("ulink: " .. #ulinks)
+    else
+        warn("no ulink tag found")
+    end
+    if links then
+        if ulinks then
+            -- interesing, both link and ulink has been found, DB4+DB5 mix?
+            return table.appendTables(links, ulinks)
+        else
+            return links
+        end
+    else
+        return ulinks
+    end
+end
+
+
+
 ---
 --- Reports non-functional or blacklisted external links.
 ---
