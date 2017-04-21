@@ -133,6 +133,32 @@ end
 
 
 --
+--- Compose command in bash which tries all links using more processes.
+--
+--  @param links string with all links separated by new line.
+--  @return composed command in string
+function TechnicalAccuracy.composeCommand(links)
+
+    local command =  [[ checkLink() {
+    URL=$1
+
+    echo -n "$1 "
+    curl -4Ls --insecure --post302 --connect-timeout 5 --retry 5 --retry-delay 3 --max-time 20 -A 'Mozilla/5.0 (X11; Linux x86_64; rv:31.0) Gecko/20100101 Firefox/31.0' -w "%{http_code} %{url_effective}" -o /dev/null $1 | tail -n 1
+    }
+
+    export -f checkLink
+    echo -e ']] .. links .. [[' | xargs -d'\n' -n1 -P0 -I url bash -c 'echo `checkLink url`' ]]
+    -- This command checks whether link contains access.redhat.com/documentation. If it's true then replace this part
+    -- by documentation-devel.engineering.redhat.com/site/documentation . Then calls curl. Curl with these parameters can run parallelly (as many processes as OS allows).
+    -- Maximum time for each link is 5 seconds. Output of function checkLink is:
+    --                                                        tested_url______exit_code
+
+    return command
+end
+
+
+
+--
 --- Runs command which tries all links and then parse output of this command.
 --  In the ouput table is information about each link in this format: link______exitCode.
 --  link is link, exitCode is exit code of curl command, it determines which error occured.
