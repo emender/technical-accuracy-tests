@@ -41,11 +41,42 @@ TechnicalAccuracy = {
     curlDisplayHttpStatusAndEffectiveURL = "-w \"%{http_code} %{url_effective}\" -o /dev/null "
 }
 
+
+
 --
 --- Function which runs first. This is place where all objects are created.
 --
 function TechnicalAccuracy.setUp()
+    -- Load all required libraries.
+    dofile(getScriptDirectory() .. "lib/xml.lua")
+    dofile(getScriptDirectory() .. "lib/publican.lua")
+
+    -- Create publican object.
+    if path.file_exists("publican.cfg") then
+        TechnicalAccuracy.publicanInstance = publican.create("publican.cfg")
+
+        -- Create xml object.
+        TechnicalAccuracy.xmlInstance = xml.create(TechnicalAccuracy.publicanInstance:findMainFile())
+
+        -- Print information about searching links.
+        warn("Searching for links in the book ...")
+        TechnicalAccuracy.allLinks = TechnicalAccuracy.findLinks()
+    else
+        fail("publican.cfg does not exist")
+    end
+
+    if TechnicalAccuracy.forbiddenLinks then
+        warn("Found forbiddenLinks CLI option: " .. TechnicalAccuracy.forbiddenLinks)
+        local links = TechnicalAccuracy.forbiddenLinks:split(",")
+        for _,link in ipairs(links) do
+            warn("Adding following link into black list: " .. link)
+            -- insert into table
+            TechnicalAccuracy.forbiddenLinksTable[link] = link
+        end
+    end
 end
+
+
 
 ---
 --- Reports non-functional or blacklisted external links.
