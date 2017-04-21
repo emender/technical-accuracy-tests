@@ -132,6 +132,40 @@ end
 
 
 
+--
+--- Runs command which tries all links and then parse output of this command.
+--  In the ouput table is information about each link in this format: link______exitCode.
+--  link is link, exitCode is exit code of curl command, it determines which error occured.
+--  These two information are separated by six underscores.
+--
+--  @param links string with links separated by new line
+--  @return list with link and exit code
+function TechnicalAccuracy.tryLinks(links)
+    local list = {}
+
+    local output = execCaptureOutputAsTable(TechnicalAccuracy.composeCommand(links))
+
+    for _, line in ipairs(output) do
+        --local link, exitCode = line:match("(.+)______(%d+)$")
+        --list[link] = exitCode
+
+        -- line should consist of three parts separated by spaces:
+        -- 1) original URL (as written in document)
+        -- 2) HTTP code (200, 404 etc.)
+        -- 3) final URL (it could differ from the original URL if request redirection has been performed)
+        local originalUrl, httpCode, effectiveUrl = line:match("(%g+) (%d+) (.+)$")
+        local result = {}
+        result.originalUrl = originalUrl
+        result.effectiveUrl = effectiveUrl
+        result.httpCode = httpCode
+        list[effectiveUrl] = result
+    end
+
+    return list
+end
+
+
+
 ---
 --- Reports non-functional or blacklisted external links.
 ---
