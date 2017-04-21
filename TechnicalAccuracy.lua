@@ -26,6 +26,19 @@ TechnicalAccuracy = {
         tags = {"DocBook", "Release"}
     },
     requires = {"curl", "xmllint", "xmlstarlet"},
+    xmlInstance = nil,
+    publicanInstance = nil,
+    allLinks = nil,
+    language = "en-US",
+    forbiddenLinks = nil,
+    forbiddenLinksTable = {},
+    exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org",
+                 "localhost", "127%.0%.0%.1", "::1"},
+    HTTP_OK_CODE = "200",
+    FTP_OK_CODE = "226",
+    FORBIDDEN = "403",
+    curlCommand = "curl -4Ls --insecure --post302 --connect-timeout 5 --retry 5 --retry-delay 3 --max-time 20 -A 'Mozilla/5.0 (X11; Linux x86_64; rv:31.0) Gecko/20100101 Firefox/31.0' ",
+    curlDisplayHttpStatusAndEffectiveURL = "-w \"%{http_code} %{url_effective}\" -o /dev/null "
 }
 
 --
