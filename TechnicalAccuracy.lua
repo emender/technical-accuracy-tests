@@ -333,21 +333,53 @@ end
 
 
 
----
---- Reports non-functional or blacklisted external links.
----
-function TechnicalAccuracy.testExternalLinks()
-    local failure = nil
-
-    if table.isEmpty(TechnicalAccuracy.allLinks) then
-        pass("No links found.")
-        return
-    end
-
-    for _, link in pairs(TechnicalAccuracy.forbiddenLinksTable) do
+--
+-- Checks all forbidden links.
+--
+function TechnicalAccuracy:checkForbiddenLinks()
+    for _, link in pairs(self.forbiddenLinksTable) do
         fail("is blacklisted. See the emender.ini file in the guide repository for blacklisted links.", link)
     end
+    if #self.forbiddenLinksTable > 0 then
+        self.failure = true
+    end
+end
 
+
+
+--
+-- Checks all links pointing to the Customer Portal.
+--
+function TechnicalAccuracy:checkCustomerPortalLinks()
+    for _, linkToCheck in ipairs(self.customerPortalLinks) do
+        yap("Checking " .. linkToCheck)
+        local command = self.curlCommand .. linkToCheck .. " | sed -n 's/<title>\\(.*\\)<\\/title>/\\1/p'"
+        local output = execCaptureOutputAsTable(command)
+        if not output or #output == 0 then
+            fail("does not work.", linkToCheck)
+            failure = true
+        else
+            local title = output[1]
+            if not title then
+                fail("page does not contain title", linkToCheck)
+            else
+                if title:trim():startsWith("Product Documentation") then
+                    fail("gets redirected to the product documentation landing page.", linkToCheck)
+                    failure = true
+                else
+                    yap("ok")
+                end
+            end
+        end
+    end
+end
+
+
+
+--
+-- Checks all regular links.
+--
+function TechnicalAccuracy:checkRegularLinks()
     -- Convert list of links into string and then check all links using curl.
     local checkedLinks = self:tryLinks(self:convertListForMultiprocess())
 
@@ -412,5 +444,31 @@ function TechnicalAccuracy.testExternalLinks()
             end
         end
     end
+end
+
+
+
+--
+-- Print test results in case of zero failures.
+--
+function TechnicalAccuracy:printOverallResults()
+    if not self.failure then
+        local found = #self.allLinks + #self.customerPortalLinks
+        pass("Congratulations! All external links (found " .. found .. ") work.")
+    end
+end
+
+
+
+---
+--- Reports non-functional or blacklisted external links.
+---
+function TechnicalAccuracy.testExternalLinks()
+    TechnicalAccuracy.failure = nil
+
+    TechnicalAccuracy:checkForbiddenLinks()
+    TechnicalAccuracy:checkCustomerPortalLinks()
+    TechnicalAccuracy:checkRegularLinks()
+    TechnicalAccuracy:printOverallResults()
 end
 
