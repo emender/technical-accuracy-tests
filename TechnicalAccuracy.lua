@@ -74,7 +74,7 @@ function TechnicalAccuracy.setUp()
 
         -- Print information about searching links.
         yap("Searching for links in the book ...")
-        TechnicalAccuracy.allLinks, TechnicalAccuracy.forbiddenLinksTable, TechnicalAccuracy.customerPortalLinks = TechnicalAccuracy.findLinks()
+        TechnicalAccuracy.allLinks, TechnicalAccuracy.forbiddenLinksTable, TechnicalAccuracy.customerPortalLinks = TechnicalAccuracy:findLinks()
     else
         fail("publican.cfg does not exist")
     end
@@ -85,8 +85,8 @@ end
 --
 -- Check if the given link is part of forbidden site.
 --
-function TechnicalAccuracy.isForbiddenLink(link)
-    for _,forbiddenLink in pairs(TechnicalAccuracy.forbiddenLinksPatterns) do
+function TechnicalAccuracy:isForbiddenLink(link)
+    for _,forbiddenLink in pairs(self.forbiddenLinksPatterns) do
         if string.find(link, forbiddenLink, 1, true) then
             return true
         end
@@ -99,8 +99,7 @@ end
 --
 -- Check if the given link links to the customer portal.
 --
-function TechnicalAccuracy.isCustomerPortalLink(link)
-    print(link)
+function TechnicalAccuracy:isCustomerPortalLink(link)
     return link:startsWith("http://access.redhat.com") or
            link:startsWith("https://access.redhat.com") or
            link:startsWith("http://access.qa.redhat.com/") or
@@ -113,14 +112,14 @@ end
 -- Add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
 -- Forbidden links are inserted into the 'forbiddenLinks' table.
 --
-function TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
+function TechnicalAccuracy:addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
     if links then
         for _, link in ipairs(links) do
-            if TechnicalAccuracy.isForbiddenLink(link) then
+            if self:isForbiddenLink(link) then
                 -- verbose mode
                 -- warn("removing " .. link)
                 table.insert(forbiddenLinks, link)
-            elseif TechnicalAccuracy.isCustomerPortalLink(link) then
+            elseif self:isCustomerPortalLink(link) then
                 -- verbose mode
                 -- warn("customer portal link " .. link)
                 table.insert(customerPortalLinks, link)
@@ -139,9 +138,9 @@ end
 --- Parse links from the document.
 --
 --  @return table with links
-function TechnicalAccuracy.findLinks()
-    local links  = TechnicalAccuracy.xmlInstance:getAttributesOfElement("href", "link")
-    local ulinks = TechnicalAccuracy.xmlInstance:getAttributesOfElement("url",  "ulink")
+function TechnicalAccuracy:findLinks()
+    local links  = self.xmlInstance:getAttributesOfElement("href", "link")
+    local ulinks = self.xmlInstance:getAttributesOfElement("url",  "ulink")
     if links then
         if #links == 1 then
             yap("found one <link> tag")
@@ -165,8 +164,8 @@ function TechnicalAccuracy.findLinks()
     local allLinks = {}
     local forbiddenLinks = {}
     local customerPortalLinks = {}
-    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
-    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, customerPortalLinks, ulinks)
+    self:addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
+    self:addLinks(allLinks, forbiddenLinks, customerPortalLinks, ulinks)
     return allLinks, forbiddenLinks, customerPortalLinks
 end
 
@@ -177,12 +176,12 @@ end
 --  This format is used because bash function accepts this format.
 --
 --  @return string which contains all links separated by new line.
-function TechnicalAccuracy.convertListForMultiprocess()
+function TechnicalAccuracy:convertListForMultiprocess()
     local convertedLinks = ""
 
     -- Go through all links and concatenate them. Put each link into double quotes
     -- because of semicolons in links which ends bash command.
-    for _, link in pairs(TechnicalAccuracy.allLinks) do
+    for _, link in pairs(self.allLinks) do
         -- Skip every empty line.
         if not link:match("^$") then
             convertedLinks = convertedLinks .. "\"" .. link .. "\"\n"
@@ -229,10 +228,10 @@ end
 --
 --  @param links string with links separated by new line
 --  @return list with link and exit code
-function TechnicalAccuracy.tryLinks(links)
+function TechnicalAccuracy:tryLinks(links)
     local list = {}
 
-    local output = execCaptureOutputAsTable(TechnicalAccuracy.composeCommand(links))
+    local output = execCaptureOutputAsTable(self.composeCommand(links))
 
     for _, line in ipairs(output) do
         --local link, exitCode = line:match("(.+)______(%d+)$")
@@ -350,28 +349,28 @@ function TechnicalAccuracy.testExternalLinks()
     end
 
     -- Convert list of links into string and then check all links using curl.
-    local checkedLinks = TechnicalAccuracy.tryLinks(TechnicalAccuracy.convertListForMultiprocess())
+    local checkedLinks = self:tryLinks(self:convertListForMultiprocess())
 
     -- Go through all links and print the results out.
     for linkValue, result in pairs(checkedLinks) do
         local exitCode     = result.httpCode
         local originalUrl  = result.originalUrl
         local effectiveUrl = result.effectiveUrl
-        if TechnicalAccuracy.isAnchor(linkValue) then
+        if self.isAnchor(linkValue) then
             warn(linkValue .. " - Anchor")
-        elseif TechnicalAccuracy.mailOrFileLink(linkValue) then
+        elseif self.mailOrFileLink(linkValue) then
             -- Mail or file link - warn
             warn(linkValue)
-        elseif TechnicalAccuracy.isLinkFromList(linkValue, TechnicalAccuracy.exampleList) then
+        elseif self.isLinkFromList(linkValue, self.exampleList) then
             -- Example or localhost - OK
             warn(linkValue .. " - Example")
-        elseif TechnicalAccuracy.isLinkFromList(linkValue, TechnicalAccuracy.internalList) then
+        elseif self.isLinkFromList(linkValue, self.internalList) then
             -- Internal link - FAIL
             fail("internal link", linkValue)
             failure = true
         else
             -- Check exit code of curl command.
-            if exitCode == TechnicalAccuracy.HTTP_OK_CODE or exitCode == TechnicalAccuracy.FTP_OK_CODE then
+            if exitCode == self.HTTP_OK_CODE or exitCode == self.FTP_OK_CODE then
                 -- special case for FTP, please see CCS-1278
                 if linkValue:startsWith("ftp://") then
                     local htmlLink = ftp2httpUrl(linkValue)
@@ -388,7 +387,7 @@ function TechnicalAccuracy.testExternalLinks()
                 else
                     --pass(linkValue)
                 end
-            elseif exitCode == TechnicalAccuracy.FORBIDDEN then
+            elseif exitCode == self.FORBIDDEN then
                 warn("403 Forbidden")
                 if linkValue then
                     link("Forbidden link " .. linkValue, linkValue)
