@@ -60,7 +60,7 @@ function TechnicalAccuracy.setUp()
         TechnicalAccuracy.xmlInstance = xml.create(TechnicalAccuracy.publicanInstance:findMainFile())
 
         -- Print information about searching links.
-        warn("Searching for links in the book ...")
+        yap("Searching for links in the book ...")
         TechnicalAccuracy.allLinks = TechnicalAccuracy.findLinks()
     else
         fail("publican.cfg does not exist")
@@ -87,14 +87,22 @@ function TechnicalAccuracy.findLinks()
     local links  = TechnicalAccuracy.xmlInstance:getAttributesOfElement("href", "link")
     local ulinks = TechnicalAccuracy.xmlInstance:getAttributesOfElement("url",  "ulink")
     if links then
-        warn("link:  " .. #links)
+        if #links == 1 then
+            yap("found one <link> tag")
+        else
+            yap("found " .. #links .. " <link> tags")
+        end
     else
-        warn("no link tag found")
+        yap("no <link> tag found")
     end
     if ulinks then
-        warn("ulink: " .. #ulinks)
+        if #ulinks == 1 then
+            yap("found one <ulink> tag")
+        else
+            yap("found " .. #ulinks .. " <ulink> tags")
+        end
     else
-        warn("no ulink tag found")
+        yap("no <ulink> tag found")
     end
     if links then
         if ulinks then
