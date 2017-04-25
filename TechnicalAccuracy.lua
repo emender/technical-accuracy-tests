@@ -31,6 +31,7 @@ TechnicalAccuracy = {
     allLinks = nil,
     language = "en-US",
     forbiddenLinks = nil,
+    forbiddenLinksPatterns = {},
     forbiddenLinksTable = {},
     exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org",
                  "localhost", "127%.0%.0%.1", "::1"},
@@ -52,6 +53,17 @@ function TechnicalAccuracy.setUp()
     dofile(getScriptDirectory() .. "lib/xml.lua")
     dofile(getScriptDirectory() .. "lib/publican.lua")
 
+    -- Create table containing all forbidden links
+    if TechnicalAccuracy.forbiddenLinks then
+        yap("Found forbiddenLinks CLI option: " .. TechnicalAccuracy.forbiddenLinks)
+        local links = TechnicalAccuracy.forbiddenLinks:split(",")
+        for _,link in ipairs(links) do
+            yap("Adding following link into black list: " .. link)
+            -- insert into table
+            TechnicalAccuracy.forbiddenLinksPatterns[link] = link
+        end
+    end
+
     -- Create publican object.
     if path.file_exists("publican.cfg") then
         TechnicalAccuracy.publicanInstance = publican.create("publican.cfg")
@@ -61,18 +73,44 @@ function TechnicalAccuracy.setUp()
 
         -- Print information about searching links.
         yap("Searching for links in the book ...")
-        TechnicalAccuracy.allLinks = TechnicalAccuracy.findLinks()
+        TechnicalAccuracy.allLinks, TechnicalAccuracy.forbiddenLinksTable = TechnicalAccuracy.findLinks()
     else
         fail("publican.cfg does not exist")
     end
+end
 
-    if TechnicalAccuracy.forbiddenLinks then
-        warn("Found forbiddenLinks CLI option: " .. TechnicalAccuracy.forbiddenLinks)
-        local links = TechnicalAccuracy.forbiddenLinks:split(",")
-        for _,link in ipairs(links) do
-            warn("Adding following link into black list: " .. link)
-            -- insert into table
-            TechnicalAccuracy.forbiddenLinksTable[link] = link
+
+
+--
+-- Check if the given link is part of forbidden site.
+--
+function TechnicalAccuracy.isForbiddenLink(link)
+    for _,forbiddenLink in pairs(TechnicalAccuracy.forbiddenLinksPatterns) do
+        if string.find(link, forbiddenLink, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+
+
+--
+-- Add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
+-- Forbidden links are inserted into the 'forbiddenLinks' table.
+--
+function TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, links)
+    if links then
+        for _, link in ipairs(links) do
+            if not TechnicalAccuracy.isForbiddenLink(link) then
+                -- verbose mode
+                -- warn("adding " .. link)
+                table.insert(allLinks, link)
+            else
+                -- verbose mode
+                -- warn("removing " .. link)
+                table.insert(forbiddenLinks, link)
+            end
         end
     end
 end
@@ -104,16 +142,13 @@ function TechnicalAccuracy.findLinks()
     else
         yap("no <ulink> tag found")
     end
-    if links then
-        if ulinks then
-            -- interesing, both link and ulink has been found, DB4+DB5 mix?
-            return table.appendTables(links, ulinks)
-        else
-            return links
-        end
-    else
-        return ulinks
-    end
+
+    -- add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
+    local allLinks = {}
+    local forbiddenLinks = {}
+    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, links)
+    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, ulinks)
+    return allLinks, forbiddenLinks
 end
 
 
@@ -289,6 +324,10 @@ function TechnicalAccuracy.testExternalLinks()
     if table.isEmpty(TechnicalAccuracy.allLinks) then
         pass("No links found.")
         return
+    end
+
+    for _, link in pairs(TechnicalAccuracy.forbiddenLinksTable) do
+        fail("is blacklisted. See the emender.ini file in the guide repository for blacklisted links.", link)
     end
 
     -- Convert list of links into string and then check all links using curl.
