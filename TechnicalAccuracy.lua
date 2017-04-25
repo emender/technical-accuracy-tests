@@ -33,6 +33,7 @@ TechnicalAccuracy = {
     forbiddenLinks = nil,
     forbiddenLinksPatterns = {},
     forbiddenLinksTable = {},
+    customerPortalLinks = {},
     exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org",
                  "localhost", "127%.0%.0%.1", "::1"},
     internalList = {},
@@ -73,7 +74,7 @@ function TechnicalAccuracy.setUp()
 
         -- Print information about searching links.
         yap("Searching for links in the book ...")
-        TechnicalAccuracy.allLinks, TechnicalAccuracy.forbiddenLinksTable = TechnicalAccuracy.findLinks()
+        TechnicalAccuracy.allLinks, TechnicalAccuracy.forbiddenLinksTable, TechnicalAccuracy.customerPortalLinks = TechnicalAccuracy.findLinks()
     else
         fail("publican.cfg does not exist")
     end
@@ -96,20 +97,37 @@ end
 
 
 --
+-- Check if the given link links to the customer portal.
+--
+function TechnicalAccuracy.isCustomerPortalLink(link)
+    print(link)
+    return link:startsWith("http://access.redhat.com") or
+           link:startsWith("https://access.redhat.com") or
+           link:startsWith("http://access.qa.redhat.com/") or
+           link:startsWith("https://access.qa.redhat.com/")
+end
+
+
+
+--
 -- Add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
 -- Forbidden links are inserted into the 'forbiddenLinks' table.
 --
-function TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, links)
+function TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
     if links then
         for _, link in ipairs(links) do
-            if not TechnicalAccuracy.isForbiddenLink(link) then
-                -- verbose mode
-                -- warn("adding " .. link)
-                table.insert(allLinks, link)
-            else
+            if TechnicalAccuracy.isForbiddenLink(link) then
                 -- verbose mode
                 -- warn("removing " .. link)
                 table.insert(forbiddenLinks, link)
+            elseif TechnicalAccuracy.isCustomerPortalLink(link) then
+                -- verbose mode
+                -- warn("customer portal link " .. link)
+                table.insert(customerPortalLinks, link)
+            else
+                -- verbose mode
+                -- warn("adding " .. link)
+                table.insert(allLinks, link)
             end
         end
     end
@@ -146,9 +164,10 @@ function TechnicalAccuracy.findLinks()
     -- add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
     local allLinks = {}
     local forbiddenLinks = {}
-    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, links)
-    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, ulinks)
-    return allLinks, forbiddenLinks
+    local customerPortalLinks = {}
+    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
+    TechnicalAccuracy.addLinks(allLinks, forbiddenLinks, customerPortalLinks, ulinks)
+    return allLinks, forbiddenLinks, customerPortalLinks
 end
 
 
@@ -364,10 +383,10 @@ function TechnicalAccuracy.testExternalLinks()
                         failure = true
                     else
                         -- only ftp:// link is accessible
-                        pass(linkValue)
+                        --pass(linkValue)
                     end
                 else
-                    pass(linkValue)
+                    --pass(linkValue)
                 end
             elseif exitCode == TechnicalAccuracy.FORBIDDEN then
                 warn("403 Forbidden")
