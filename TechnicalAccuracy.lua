@@ -284,6 +284,8 @@ end
 --- Reports non-functional or blacklisted external links.
 ---
 function TechnicalAccuracy.testExternalLinks()
+    local failure = nil
+
     if table.isEmpty(TechnicalAccuracy.allLinks) then
         pass("No links found.")
         return
@@ -307,8 +309,8 @@ function TechnicalAccuracy.testExternalLinks()
             warn(linkValue .. " - Example")
         elseif TechnicalAccuracy.isLinkFromList(linkValue, TechnicalAccuracy.internalList) then
             -- Internal link - FAIL
-            fail(linkValue .. " - Internal link")
-            link(linkValue, linkValue)
+            fail("internal link", linkValue)
+            failure = true
         else
             -- Check exit code of curl command.
             if exitCode == TechnicalAccuracy.HTTP_OK_CODE or exitCode == TechnicalAccuracy.FTP_OK_CODE then
@@ -318,9 +320,9 @@ function TechnicalAccuracy.testExternalLinks()
                     if tryOneLink(htmlLink) then
                         -- ftp link is ok AND http link is ok as well
                         -- -> display suggestion to writer that he/she should use http:// instead of ftp://
-                        fail("Please use HTTP protocol instead of FTP")
-                        link("current: " .. linkValue, linkValue)
+                        fail("Please use HTTP protocol instead of FTP", linkValue)
                         link("suggested: " .. htmlLink, htmlLink)
+                        failure = true
                     else
                         -- only ftp:// link is accessible
                         pass(linkValue)
@@ -337,16 +339,19 @@ function TechnicalAccuracy.testExternalLinks()
                 end
             else
                 -- the URL is not accessible -> the test should fail
-                fail(originalUrl)
+                fail("does not work.", originalUrl)
 
                 -- if the request has been redirected to another URL, show the original URL and redirected one
-                if originalUrl ~= effectiveUrl then
-                    link("URL in document: " .. originalUrl, originalUrl)
-                    link("Redirected URL: " .. effectiveUrl, effectiveUrl)
-                else
-                -- no redirection -> show the original URL as is written in the document
-                    link("URL to check: " .. originalUrl, originalUrl)
-                end
+                ------ this code works, but is not required by users(?)
+                ------ if originalUrl ~= effectiveUrl then
+                ------     fail("gets redirected to the product documentation landing page", originalUrl)
+                ------     failure = true
+                ------     link("URL in document: " .. originalUrl, originalUrl)
+                ------     link("Redirected URL: " .. effectiveUrl, effectiveUrl)
+                ------ else
+                ------ -- no redirection -> show the original URL as is written in the document
+                ------     link("URL to check: " .. originalUrl, originalUrl)
+                ------ end
             end
         end
     end
