@@ -409,8 +409,7 @@ function TechnicalAccuracy:checkRegularLinks()
                     if tryOneLink(htmlLink) then
                         -- ftp link is ok AND http link is ok as well
                         -- -> display suggestion to writer that he/she should use http:// instead of ftp://
-                        fail("used the FTP protocol.", linkValue)
-                        link("Use the HTTP protocol instead of FTP, suggested link: ", htmlLink, htmlLink)
+                        fail("uses the FTP protocol. Use the HTTP protocol instead of FTP, suggested link: " .. htmlLink, linkValue)
                         failure = true
                     else
                         -- only ftp:// link is accessible
