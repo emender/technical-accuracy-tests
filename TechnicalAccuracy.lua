@@ -357,7 +357,7 @@ function TechnicalAccuracy:checkCustomerPortalLinks()
         local output = execCaptureOutputAsTable(command)
         if not output or #output == 0 then
             fail("does not work.", linkToCheck)
-            failure = true
+            self.failure = true
         else
             local title = output[1]
             if not title then
@@ -365,7 +365,7 @@ function TechnicalAccuracy:checkCustomerPortalLinks()
             else
                 if title:trim():startsWith("Product Documentation") then
                     fail("gets redirected to the product documentation landing page.", linkToCheck)
-                    failure = true
+                    self.failure = true
                 else
                     yap("ok")
                 end
@@ -399,7 +399,7 @@ function TechnicalAccuracy:checkRegularLinks()
         elseif self.isLinkFromList(linkValue, self.internalList) then
             -- Internal link - FAIL
             fail("internal link", linkValue)
-            failure = true
+            self.failure = true
         else
             -- Check exit code of curl command.
             if exitCode == self.HTTP_OK_CODE or exitCode == self.FTP_OK_CODE then
@@ -410,7 +410,7 @@ function TechnicalAccuracy:checkRegularLinks()
                         -- ftp link is ok AND http link is ok as well
                         -- -> display suggestion to writer that he/she should use http:// instead of ftp://
                         fail("uses the FTP protocol. Use the HTTP protocol instead of FTP, suggested link: " .. htmlLink, linkValue)
-                        failure = true
+                        self.failure = true
                     else
                         -- only ftp:// link is accessible
                         --pass(linkValue)
@@ -428,6 +428,7 @@ function TechnicalAccuracy:checkRegularLinks()
             else
                 -- the URL is not accessible -> the test should fail
                 fail("does not work.", originalUrl)
+                self.failure = true
 
                 -- if the request has been redirected to another URL, show the original URL and redirected one
                 ------ this code works, but is not required by users(?)
