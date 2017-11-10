@@ -180,6 +180,10 @@ end
 --
 --  @return string which contains all links separated by new line.
 function TechnicalAccuracy:convertListForMultiprocess()
+    if #self.allLinks == 0 then
+        yap("No links to process")
+        return nil
+    end
     local convertedLinks = ""
 
     -- Go through all links and concatenate them. Put each link into double quotes
@@ -232,6 +236,10 @@ end
 --  @param links string with links separated by new line
 --  @return list with link and exit code
 function TechnicalAccuracy:tryLinks(links)
+    if not links then
+        yap("Skipping tryLinks() - no links to process")
+        return {}
+    end
     local list = {}
 
     local output = execCaptureOutputAsTable(self.composeCommand(links))
