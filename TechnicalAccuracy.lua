@@ -464,8 +464,20 @@ end
 --
 function TechnicalAccuracy:printOverallResults()
     if not self.failure then
+        if #self.allLinks == 0 then
+            if #self.customerPortalLinks == 0 then
+                pass("Congratulations! There are no links to test :)")
+            else
+                pass("Congratulations! All customer portal links (found " .. #self.customerPortalLinks .. ") work.")
+            end
+        else  -- allLinks > 0
+            if #self.customerPortalLinks == 0 then
+                pass("Congratulations! All external links (found " .. #self.allLinks .. ") work.")
+            else
+                pass("Congratulations! All external links (found " .. #self.allLinks .. ") and customer portal links (found " .. #self.customerPortalLinks .. ") work.")
+            end
+        end
         local found = #self.allLinks + #self.customerPortalLinks
-        pass("Congratulations! All external links (found " .. found .. ") work.")
     end
 end
 
