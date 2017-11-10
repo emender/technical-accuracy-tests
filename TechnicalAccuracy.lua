@@ -166,6 +166,9 @@ function TechnicalAccuracy:findLinks()
     local customerPortalLinks = {}
     self:addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
     self:addLinks(allLinks, forbiddenLinks, customerPortalLinks, ulinks)
+    yap("Regular links: " .. #allLinks)
+    yap("Forbidden links: " .. #forbiddenLinks)
+    yap("Customer portal links: " .. #customerPortalLinks)
     return allLinks, forbiddenLinks, customerPortalLinks
 end
 
