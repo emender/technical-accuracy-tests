@@ -226,7 +226,7 @@ end
 
 
 function curlCommand(link)
-    return "curl -w '%{url_effective}\\n %{http_code}\\n' -I -L -s -S " .. link .. " -o /dev/null"
+    return "curl --insecure -w '%{url_effective}\\n %{http_code}\\n' -I -L -s -S " .. link .. " -o /dev/null"
 end
 
 
