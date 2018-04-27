@@ -220,7 +220,7 @@ end
 
 
 function wgetCommand(link)
-    return "wget --quiet -O - " .. link .. " | sed -n -e's!.*<title>\\(.*\\)</title>.*!\\1!p'"
+    return "wget --quiet -O - " .. link .. " | sed -n -e' s!.*<title>\\(.*\\)</title>.*!\\1!p'"
 end
 
 
