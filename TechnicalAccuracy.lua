@@ -220,7 +220,7 @@ end
 
 
 function wgetCommand(link)
-    return "wget --quiet -O - " .. link .. " | sed -n -e 's!.*<title>\\(.*\\)</title>.*!\\1!p'"
+    return "wget --quiet -O - " .. link .. " | sed -n -e's!.*<title>\\(.*\\)</title>.*!\\1!p'"
 end
 
 
@@ -248,7 +248,6 @@ function TechnicalAccuracy:checkLinks(links, message)
     resultsTable["commandLinkCount"] = 0
     resultsTable["okLinkCount"] = 0
     for _, link in ipairs(links) do
-        print(wgetCommand(link))
         local pageTitle = execCaptureOutputAsString(wgetCommand(link))
         local redirectAndStatusCode = execCaptureOutputAsTable(curlCommand(link))
         if link:startsWith("ftp://") then
