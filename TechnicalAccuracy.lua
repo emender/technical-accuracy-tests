@@ -22,16 +22,17 @@ TechnicalAccuracy = {
         description = "The Techical Accuracy test verifies that documentation is technically accurate. For example, it reports non-functional or blacklisted external links.",
         authors = "Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky, Lana Ovcharenko",
         emails = "jhradilek@redhat.com, pvomacka@redhat.com, ptisnovs@redhat.com, lovchare@redhat.com",
-        changed = "2018-04-26",
+        changed = "2018-04-27",
         tags = {"DocBook", "Release"}
     },
-    requires = {"wget", "curl", "xmllint", "xmlstarlet"},
+    requires = {"wget", "curl"},
     xmlObj = nil,
     regularLinks = {},
     language = "en-US",
     blacklistedLinks = nil,
     blacklistedLinkPatterns = {},
     blacklistedLinksTable = {},
+    restrictedAccessLinks = {},
     customerPortalLinks = {},
     exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org", "localhost", "127%.0%.0%.1", "::1"},
     internalList = {},
@@ -120,7 +121,7 @@ end
 
 
 
-function TechnicalAccuracy:isForbiddenLink(link)
+function TechnicalAccuracy:isBlacklistedLink(link)
     for _,pattern in pairs(self.blacklistedLinkPatterns) do
         if link:find(pattern, 1, true) then
             return true
@@ -131,22 +132,29 @@ end
 
 
 
-function TechnicalAccuracy:isCustomerPortalLink(link)
-    return link:startsWith("http://access.redhat.com") or
-            link:startsWith("https://access.redhat.com") or
-            link:startsWith("http://access.qa.redhat.com") or
+function isRestrictedAccessLink(link)
+    return link:startsWith("http://access.qa.redhat.com") or
             link:startsWith("https://access.qa.redhat.com")
 end
 
 
 
--- Sort links into three groups.
+function isCustomerPortalLink(link)
+    return link:startsWith("http://access.redhat.com") or
+            link:startsWith("https://access.redhat.com")
+end
+
+
+
+-- Sort links into groups.
 function TechnicalAccuracy:sortLinks(links)
     if links then
         for _, link in ipairs(links) do
-            if self:isForbiddenLink(link) then
+            if self:isBlacklistedLink(link) then
                 table.insert(self.blacklistedLinksTable, link)
-            elseif self:isCustomerPortalLink(link) then
+            elseif isRestrictedAccessLink(link) then
+                table.insert(self.restrictedAccessLinks, link)
+            elseif isCustomerPortalLink(link) then
                 table.insert(self.customerPortalLinks, link)
             else
                 table.insert(self.regularLinks, link)
@@ -175,6 +183,7 @@ function TechnicalAccuracy:findLinks()
     self:sortLinks(links)
     self:sortLinks(ulinks)
     pass("Blacklisted links: " .. #self.blacklistedLinksTable)
+    pass("Restricted access (QA) links: " .. #self.restrictedAccessLinks)
     pass("Customer Portal links: " .. #self.customerPortalLinks)
     pass("Regular links: " .. #self.regularLinks)
 end
@@ -208,11 +217,22 @@ end
 
 
 
-function TechnicalAccuracy:checkblacklistedLinks()
+function TechnicalAccuracy:checkBlacklistedLinks()
     if #self.blacklistedLinksTable > 0 then
-        pass(string.upper("Analyzing blacklisted links... See emender.ini in the documentation repository."))
+        fail(string.upper("Analyzing blacklisted links... See emender.ini in the documentation repository."))
     end
     for _, link in pairs(self.blacklistedLinksTable) do
+        fail(link)
+    end
+end
+
+
+
+function TechnicalAccuracy:checkRestrictedAccessLinks()
+    if #self.restrictedAccessLinks > 0 then
+        fail(string.upper("Analyzing links with restricted access... These are QA-specific and should not be used in documentation."))
+    end
+    for _, link in pairs(self.restrictedAccessLinks) do
         fail(link)
     end
 end
@@ -342,7 +362,8 @@ function TechnicalAccuracy.testExternalLinks()
     if not TechnicalAccuracy.isReady then
         return
     end
-    TechnicalAccuracy:checkblacklistedLinks()
+    TechnicalAccuracy:checkBlacklistedLinks()
+    TechnicalAccuracy:checkRestrictedAccessLinks()
     TechnicalAccuracy.customerPortalLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.customerPortalLinks, "Analyzing Customer Portal links...")
     TechnicalAccuracy.regularLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.regularLinks, "Analyzing regular links...")
     if #TechnicalAccuracy.customerPortalLinks > 0 then
