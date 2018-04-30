@@ -32,7 +32,6 @@ TechnicalAccuracy = {
     blacklistedLinks = nil,
     blacklistedLinkPatterns = {},
     blacklistedLinksTable = {},
-    restrictedAccessLinks = {},
     customerPortalLinks = {},
     exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org", "localhost", "127%.0%.0%.1", "::1"},
     internalList = {},
@@ -132,16 +131,11 @@ end
 
 
 
-function isRestrictedAccessLink(link)
-    return link:startsWith("http://access.qa.redhat.com") or
-            link:startsWith("https://access.qa.redhat.com")
-end
-
-
-
 function isCustomerPortalLink(link)
     return link:startsWith("http://access.redhat.com") or
-            link:startsWith("https://access.redhat.com")
+            link:startsWith("https://access.redhat.com") or
+            link:startsWith("http://access.qa.redhat.com") or
+            link:startsWith("https://access.qa.redhat.com")
 end
 
 
@@ -152,8 +146,6 @@ function TechnicalAccuracy:sortLinks(links)
         for _, link in ipairs(links) do
             if self:isBlacklistedLink(link) then
                 table.insert(self.blacklistedLinksTable, link)
-            elseif isRestrictedAccessLink(link) then
-                table.insert(self.restrictedAccessLinks, link)
             elseif isCustomerPortalLink(link) then
                 table.insert(self.customerPortalLinks, link)
             else
@@ -183,7 +175,6 @@ function TechnicalAccuracy:findLinks()
     self:sortLinks(links)
     self:sortLinks(ulinks)
     pass("Blacklisted links: " .. #self.blacklistedLinksTable)
-    pass("Restricted access (QA) links: " .. #self.restrictedAccessLinks)
     pass("Customer Portal links: " .. #self.customerPortalLinks)
     pass("Regular links: " .. #self.regularLinks)
 end
@@ -228,19 +219,16 @@ end
 
 
 
-function TechnicalAccuracy:checkRestrictedAccessLinks()
-    if #self.restrictedAccessLinks > 0 then
-        fail(string.upper("Analyzing links with restricted access... These are QA-specific and should not be used in documentation."))
+function getPageTitle(link)
+    local response = execCaptureOutputAsString("wget --quiet -O - " .. link)
+    if not response then
+        return nil
     end
-    for _, link in pairs(self.restrictedAccessLinks) do
-        fail(link)
+    local title = response:match("<title>.+</title>")
+    if not title then
+        return nil
     end
-end
-
-
-
-function wgetCommand(link)
-    return "wget --quiet -O - " .. link .. " | sed -n -e' s!.*<title>\\(.*\\)</title>.*!\\1!p'"
+    return title:gsub("<title>", ""):gsub("</title>", "")
 end
 
 
@@ -267,24 +255,28 @@ function TechnicalAccuracy:checkLinks(links, message)
     resultsTable["anchorLinkCount"] = 0
     resultsTable["commandLinkCount"] = 0
     resultsTable["okLinkCount"] = 0
+    resultsTable["unknownLinkCount"] = 0
     for _, link in ipairs(links) do
-        local pageTitle = execCaptureOutputAsString(wgetCommand(link))
+        local pageTitle = getPageTitle(link)
         local redirectAndStatusCode = execCaptureOutputAsTable(curlCommand(link))
         if link:startsWith("ftp://") then
             local httpLink = link:gsub("^ftp://", "http://")
-            if execCaptureOutputAsTable(curlCommand(httpLink)[2]) == self.HTTP_OK_CODE then
+            if execCaptureOutputAsTable(curlCommand(httpLink))[2]:trim() == self.HTTP_OK_CODE then
                 fail(link .. " uses FTP protocol, but you can replace it with HTTP and it will work.")
                 resultsTable["ftpValidLinkCount"] = resultsTable["ftpValidLinkCount"] + 1
             else
                 fail(link .. " uses FTP protocol, and replacing it with HTTP will not work.")
                 resultsTable["ftpInvalidLinkCount"] = resultsTable["ftpInvalidLinkCount"] + 1
             end
-        elseif redirectAndStatusCode[2] == self.ERROR_CODE then
+        elseif redirectAndStatusCode[2]:trim() == self.ERROR_CODE then
             fail(link .. " is broken (" .. self.ERROR_CODE .. " status code).")
             resultsTable["brokenLinkCount"] = resultsTable["brokenLinkCount"] + 1
-        elseif redirectAndStatusCode[2] == self.FORBIDDEN_CODE then
+        elseif redirectAndStatusCode[2]:trim() == self.FORBIDDEN_CODE then
             fail(link .. " is forbidden (" .. self.FORBIDDEN_CODE .. " status code).")
             resultsTable["forbiddenLinkCount"] = resultsTable["forbiddenLinkCount"] + 1
+        elseif redirectAndStatusCode[2]:trim() ~= self.HTTP_OK_CODE then
+            fail(link .. " has " .. redirectAndStatusCode[2]:trim() .. " status code.")
+            resultsTable["unknownLinkCount"] = resultsTable["unknownLinkCount"] + 1
         elseif not pageTitle or pageTitle == "" then
             fail(link .. " has no page title.")
             resultsTable["untitledLinkCount"] = resultsTable["untitledLinkCount"] + 1
@@ -346,6 +338,7 @@ function TechnicalAccuracy:printResults(resultsTable, name)
     fail("Invalid FTP: " .. resultsTable["ftpInvalidLinkCount"])
     fail("Broken: " .. resultsTable["brokenLinkCount"])
     fail("Forbidden: " .. resultsTable["forbiddenLinkCount"])
+    fail("Other status code: " .. resultsTable["unknownLinkCount"])
     fail("No page title: " .. resultsTable["untitledLinkCount"])
     fail("Redirected: " .. resultsTable["redirectedLinkCount"])
     warn("Internal: " .. resultsTable["internalLinkCount"])
@@ -363,7 +356,6 @@ function TechnicalAccuracy.testExternalLinks()
         return
     end
     TechnicalAccuracy:checkBlacklistedLinks()
-    TechnicalAccuracy:checkRestrictedAccessLinks()
     TechnicalAccuracy.customerPortalLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.customerPortalLinks, "Analyzing Customer Portal links...")
     TechnicalAccuracy.regularLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.regularLinks, "Analyzing regular links...")
     if #TechnicalAccuracy.customerPortalLinks > 0 then
