@@ -1,314 +1,128 @@
--- TechnicalAccuracy.lua
+--[[
+The Technical Accuracy test verifies that documentation is technically 
+accurate. For example, it reports non-functional or blacklisted external links.
 
--- This test verifies if a guide is technically accurate. For example, it
--- reports non-functional or blacklisted external links.
+Copyright (C) 2014-2018 Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky, Lana 
+Ovcharenko
 
--- Copyright (C) 2014-2017 Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 of the License.
 
--- This program is free software:  you can redistribute it and/or modify it
--- under the terms of  the  GNU General Public License  as published by the
--- Free Software Foundation, version 3 of the License.
---
--- This program  is  distributed  in the hope  that it will be useful,  but
--- WITHOUT  ANY WARRANTY;  without  even the implied warranty of MERCHANTA-
--- BILITY or  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
--- License for more details.
---
--- You should have received a copy of the GNU General Public License  along
--- with this program. If not, see <http://www.gnu.org/licenses/>.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <http://www.gnu.org/licenses/>.
+]]
 
 TechnicalAccuracy = {
     metadata = {
-        description = "This test verifies if a guide is technically accurate. For example, it reports non-functional or blacklisted external links.",
-        authors = "Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky",
-        emails = "jhradilek@redhat.com, pvomacka@redhat.com, ptisnovs@redhat.com",
-        changed = "2017-04-19",
+        description = "The Techical Accuracy test verifies that documentation is technically accurate. For example, it reports non-functional or blacklisted external links.",
+        authors = "Jaromir Hradilek, Pavel Vomacka, Pavel Tisnovsky, Lana Ovcharenko",
+        emails = "jhradilek@redhat.com, pvomacka@redhat.com, ptisnovs@redhat.com, lovchare@redhat.com",
+        changed = "2018-04-27",
         tags = {"DocBook", "Release"}
     },
-    requires = {"curl", "xmllint", "xmlstarlet"},
-    xmlInstance = nil,
-    publicanInstance = nil,
-    allLinks = nil,
+    requires = {"wget", "curl"},
+    xmlObj = nil,
+    regularLinks = {},
     language = "en-US",
-    forbiddenLinks = nil,
-    forbiddenLinksPatterns = {},
-    forbiddenLinksTable = {},
+    blacklistedLinks = nil,
+    blacklistedLinkPatterns = {},
+    blacklistedLinksTable = {},
     customerPortalLinks = {},
-    exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org",
-                 "localhost", "127%.0%.0%.1", "::1"},
+    exampleList = {"example%.com", "example%.edu", "example%.net", "example%.org", "localhost", "127%.0%.0%.1", "::1"},
     internalList = {},
     HTTP_OK_CODE = "200",
     FTP_OK_CODE = "226",
-    FORBIDDEN = "403",
-    curlCommand = "curl -4Ls --insecure --post302 --connect-timeout 5 --retry 5 --retry-delay 3 --max-time 20 -A 'Mozilla/5.0 (X11; Linux x86_64; rv:31.0) Gecko/20100101 Firefox/31.0' ",
-    curlDisplayHttpStatusAndEffectiveURL = "-w \"%{http_code} %{url_effective}\" -o /dev/null "
+    ERROR_CODE = "404",
+    FORBIDDEN_CODE = "403",
+    --
+    brokenCustomerPortalLinkCount = 0,
+    forbiddenCustomerPortalLinkCount = 0,
+    untitledCustomerPortalLinkCount = 0,
+    redirectedCustomerPortalLinkCount = 0,
+    okCustomerPortalLinkCount = 0,
+    --
+    ftpValidRegularLinkCount = 0,
+    ftpInvalidRegularLinkCount = 0,
+    brokenRegularLinkCount = 0,
+    forbiddenRegularLinkCount = 0,
+    internalRegularLinkCount = 0,
+    anchorRegularLinkCount = 0,
+    exampleRegularLinkCount = 0,
+    commandRegularLinkCount = 0,
+    okRegularLinkCount = 0
 }
 
 
 
---
---- Function which runs first. This is place where all objects are created.
---
+-- Entry point for the test.
 function TechnicalAccuracy.setUp()
-    -- Load all required libraries.
-    dofile(getScriptDirectory() .. "lib/xml.lua")
-    dofile(getScriptDirectory() .. "lib/publican.lua")
-
-    -- Create table containing all forbidden links
-    if TechnicalAccuracy.forbiddenLinks then
-        yap("Found forbiddenLinks CLI option: " .. TechnicalAccuracy.forbiddenLinks)
-        local links = TechnicalAccuracy.forbiddenLinks:split(",")
+    TechnicalAccuracy.isReady = TechnicalAccuracy:checkVariables()
+    if not TechnicalAccuracy.isReady then
+        return
+    end
+    TechnicalAccuracy:findLinks()
+    
+    -- Forbidden links passed as command line arguments.
+    if TechnicalAccuracy.blacklistedLinks then
+        local links = TechnicalAccuracy.blacklistedLinks:split(",")
         for _,link in ipairs(links) do
-            yap("Adding following link into black list: " .. link)
-            -- insert into table
-            TechnicalAccuracy.forbiddenLinksPatterns[link] = link
+            table.insert(TechnicalAccuracy.blacklistedLinkPatterns, link)
         end
-    end
-
-    -- Create publican object.
-    if path.file_exists("publican.cfg") then
-        TechnicalAccuracy.publicanInstance = publican.create("publican.cfg")
-
-        -- Create xml object.
-        TechnicalAccuracy.xmlInstance = xml.create(TechnicalAccuracy.publicanInstance:findMainFile())
-
-        -- Print information about searching links.
-        yap("Searching for links in the book ...")
-        TechnicalAccuracy.allLinks, TechnicalAccuracy.forbiddenLinksTable, TechnicalAccuracy.customerPortalLinks = TechnicalAccuracy:findLinks()
-    else
-        fail("publican.cfg does not exist")
-    end
-end
-
-
-
---
--- Check if the given link is part of forbidden site.
---
-function TechnicalAccuracy:isForbiddenLink(link)
-    for _,forbiddenLink in pairs(self.forbiddenLinksPatterns) do
-        if string.find(link, forbiddenLink, 1, true) then
-            return true
-        end
-    end
-    return false
-end
-
-
-
---
--- Check if the given link links to the customer portal.
---
-function TechnicalAccuracy:isCustomerPortalLink(link)
-    return link:startsWith("http://access.redhat.com") or
-           link:startsWith("https://access.redhat.com") or
-           link:startsWith("http://access.qa.redhat.com/") or
-           link:startsWith("https://access.qa.redhat.com/")
-end
-
-
-
---
--- Add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
--- Forbidden links are inserted into the 'forbiddenLinks' table.
---
-function TechnicalAccuracy:addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
-    if links then
-        for _, link in ipairs(links) do
-            if self:isForbiddenLink(link) then
-                -- verbose mode
-                -- warn("removing " .. link)
-                table.insert(forbiddenLinks, link)
-            elseif self:isCustomerPortalLink(link) then
-                -- verbose mode
-                -- warn("customer portal link " .. link)
-                table.insert(customerPortalLinks, link)
-            else
-                -- verbose mode
-                -- warn("adding " .. link)
-                table.insert(allLinks, link)
-            end
+        if #TechnicalAccuracy.blacklistedLinkPatterns > 1 then
+            pass("Processed " .. #TechnicalAccuracy.blacklistedLinkPatterns .. " blacklisted links from user input.")
+        elseif #TechnicalAccuracy.blacklistedLinkPatterns == 1 then
+            pass("Processed 1 blacklisted link from user input.")
         end
     end
 end
 
 
 
---
---- Parse links from the document.
---
---  @return table with links
-function TechnicalAccuracy:findLinks()
-    local links  = self.xmlInstance:getAttributesOfElement("href", "link")
-    local ulinks = self.xmlInstance:getAttributesOfElement("url",  "ulink")
-    if links then
-        if #links == 1 then
-            yap("found one <link> tag")
-        else
-            yap("found " .. #links .. " <link> tags")
-        end
-    else
-        yap("no <link> tag found")
-    end
-    if ulinks then
-        if #ulinks == 1 then
-            yap("found one <ulink> tag")
-        else
-            yap("found " .. #ulinks .. " <ulink> tags")
-        end
-    else
-        yap("no <ulink> tag found")
-    end
-
-    -- add all regular not-forbidden links from the 'links' table to the 'allLinks' table.
-    local allLinks = {}
-    local forbiddenLinks = {}
-    local customerPortalLinks = {}
-    self:addLinks(allLinks, forbiddenLinks, customerPortalLinks, links)
-    self:addLinks(allLinks, forbiddenLinks, customerPortalLinks, ulinks)
-    yap("Regular links: " .. #allLinks)
-    yap("Forbidden links: " .. #forbiddenLinks)
-    yap("Customer portal links: " .. #customerPortalLinks)
-    return allLinks, forbiddenLinks, customerPortalLinks
-end
-
-
-
---
---- Convert table with links to the string where links are separated by new line.
---  This format is used because bash function accepts this format.
---
---  @return string which contains all links separated by new line.
-function TechnicalAccuracy:convertListForMultiprocess()
-    if #self.allLinks == 0 then
-        yap("No links to process")
-        return nil
-    end
-    local convertedLinks = ""
-
-    -- Go through all links and concatenate them. Put each link into double quotes
-    -- because of semicolons in links which ends bash command.
-    for _, link in pairs(self.allLinks) do
-        -- Skip every empty line.
-        if not link:match("^$") then
-            convertedLinks = convertedLinks .. "\"" .. link .. "\"\n"
-        end
-    end
-
-    -- Remove last line break.
-    return convertedLinks:gsub("%s$", "")
-end
-
-
-
---
---- Compose command in bash which tries all links using more processes.
---
---  @param links string with all links separated by new line.
---  @return composed command in string
-function TechnicalAccuracy.composeCommand(links)
-
-    local command =  [[ checkLink() {
-    URL=$1
-
-    echo -n "$1 "
-    curl -4Ls --insecure --post302 --connect-timeout 5 --retry 5 --retry-delay 3 --max-time 20 -A 'Mozilla/5.0 (X11; Linux x86_64; rv:31.0) Gecko/20100101 Firefox/31.0' -w "%{http_code} %{url_effective}" -o /dev/null $1 | tail -n 1
-    }
-
-    export -f checkLink
-    echo -e ']] .. links .. [[' | xargs -d'\n' -n1 -P0 -I url bash -c 'echo `checkLink url`' ]]
-    -- This command checks whether link contains access.redhat.com/documentation. If it's true then replace this part
-    -- by documentation-devel.engineering.redhat.com/site/documentation . Then calls curl. Curl with these parameters can run parallelly (as many processes as OS allows).
-    -- Maximum time for each link is 5 seconds. Output of function checkLink is:
-    --                                                        tested_url______exit_code
-
-    return command
-end
-
-
-
---
---- Runs command which tries all links and then parse output of this command.
---  In the ouput table is information about each link in this format: link______exitCode.
---  link is link, exitCode is exit code of curl command, it determines which error occured.
---  These two information are separated by six underscores.
---
---  @param links string with links separated by new line
---  @return list with link and exit code
-function TechnicalAccuracy:tryLinks(links)
-    if not links then
-        yap("Skipping tryLinks() - no links to process")
-        return {}
-    end
-    local list = {}
-
-    local output = execCaptureOutputAsTable(self.composeCommand(links))
-
-    for _, line in ipairs(output) do
-        --local link, exitCode = line:match("(.+)______(%d+)$")
-        --list[link] = exitCode
-
-        -- line should consist of three parts separated by spaces:
-        -- 1) original URL (as written in document)
-        -- 2) HTTP code (200, 404 etc.)
-        -- 3) final URL (it could differ from the original URL if request redirection has been performed)
-        local originalUrl, httpCode, effectiveUrl = line:match("(%g+) (%d+) (.+)$")
-        local result = {}
-        result.originalUrl = originalUrl
-        result.effectiveUrl = effectiveUrl
-        result.httpCode = httpCode
-        list[effectiveUrl] = result
-    end
-
-    return list
-end
-
-
-
---
---- Function that find all links to anchors.
---
---  @param link
---  @return true if link is link to anchor, otherwise false.
-function TechnicalAccuracy.isAnchor(link)
-    -- If link has '#' at the beginning or if the link doesnt starts with protocol and contain '#' character
-    -- then it is link to anchor.
-    if link:match("^#") or (not link:match("^%w%w%w%w?%w?%w?://") and link:match("#")) then
-        return true
-    end
-
-    return false
-end
-
-
-
---
---- Checks whether link has prefix which says that this is mail or file, etc.
---
---  @param link
---  @return true if link is with prefix or false.
-function TechnicalAccuracy.mailOrFileLink(link)
-    if link:match("^mailto:") or link:match("^file:") or link:match("^ghelp:")
-        or link:match("^install:") or link:match("^man:") or link:match("^help:") then
-        return true
-    else
+function TechnicalAccuracy:checkVariables()
+    local publicanLib = getScriptDirectory() .. "lib/publican.lua"
+    local xmlLib = getScriptDirectory() .. "lib/xml.lua"
+    if not canOpenFile(publicanLib) or
+            not canOpenFile(xmlLib) then
         return false
     end
+    dofile(publicanLib)
+    dofile(xmlLib)
+    local publicanFile = "publican.cfg"
+    if not canOpenFile(publicanFile) then
+        return false
+    end
+    local pubObj = publican.create("publican.cfg")
+    local masterFile = pubObj:findMainFile()
+    if not canOpenFile(masterFile) then
+        return false
+    end
+    pass("Master file: " .. masterFile)
+    self.xmlObj = xml.create(masterFile)
+    return true
 end
 
 
 
---
---- Checks whether the link corresponds with one of patterns in given list.
---
---  @param link
---  @param list
---  @return true if pattern in list match link, false otherwise.
-function TechnicalAccuracy.isLinkFromList(link, list)
-    -- Go through all patterns in list.
-    for i, pattern in ipairs(list) do
-        if link:match(pattern) then
-            -- It is example or internal link.
+function canOpenFile(file)
+    local input = io.open(file, "r")
+    if input then
+        input:close()
+        return true
+    end
+    fail("Missing " .. file .. "...")
+    return false
+end
+
+
+
+function TechnicalAccuracy:isBlacklistedLink(link)
+    for _,pattern in pairs(self.blacklistedLinkPatterns) do
+        if link:find(pattern, 1, true) then
             return true
         end
     end
@@ -317,181 +131,237 @@ end
 
 
 
---
--- Replaces the ftp:// protocol specification by http://
---
-function ftp2httpUrl(link)
-    if link:startsWith("ftp://") then
-        return link:gsub("^ftp://", "http://")
+function isCustomerPortalLink(link)
+    return link:startsWith("http://access.redhat.com") or
+            link:startsWith("https://access.redhat.com") or
+            link:startsWith("http://access.qa.redhat.com") or
+            link:startsWith("https://access.qa.redhat.com")
+end
+
+
+
+-- Sort links into groups.
+function TechnicalAccuracy:sortLinks(links)
+    if links then
+        for _, link in ipairs(links) do
+            if self:isBlacklistedLink(link) then
+                table.insert(self.blacklistedLinksTable, link)
+            elseif isCustomerPortalLink(link) then
+                table.insert(self.customerPortalLinks, link)
+            else
+                table.insert(self.regularLinks, link)
+            end
+        end
+    end
+end
+
+
+
+function TechnicalAccuracy:findLinks()
+    local links = self.xmlObj:getAttributesOfElement("href", "link")
+    local ulinks = self.xmlObj:getAttributesOfElement("url", "ulink")
+    if links then
+        pass("<link> tags found: " .. #links)
     else
+        pass("No <link> tags found.")
+    end
+    if ulinks then
+        pass("<ulink> tags found: " .. #ulinks)
+    else
+        pass("No <ulink> tags found.")
+    end
+
+    -- Sort links into groups.
+    self:sortLinks(links)
+    self:sortLinks(ulinks)
+    pass("Blacklisted links: " .. #self.blacklistedLinksTable)
+    pass("Customer Portal links: " .. #self.customerPortalLinks)
+    pass("Regular links: " .. #self.regularLinks)
+end
+
+
+
+-- Check if the link has a "command" prefix such as "mailto:".
+function TechnicalAccuracy.isCommandLink(link)
+    if link:startsWith("mailto:") or 
+            link:startsWith("file:") or 
+            link:startsWith("ghelp:") or
+            link:startsWith("install:") or 
+            link:startsWith("man:") or 
+            link:startsWith("help:") then
+        return true
+    end
+    return false
+end
+
+
+
+-- Check if the link is in a pattern list.
+function TechnicalAccuracy.isLinkFromList(link, patternList)
+    for _, pattern in ipairs(patternList) do
+        if link:match(pattern) then
+            return true
+        end
+    end
+    return false
+end
+
+
+
+function TechnicalAccuracy:checkBlacklistedLinks()
+    if #self.blacklistedLinksTable > 0 then
+        fail(string.upper("Analyzing blacklisted links... See emender.ini in the documentation repository."))
+    end
+    for _, link in pairs(self.blacklistedLinksTable) do
+        fail(link)
+    end
+end
+
+
+
+function getPageTitle(link)
+    local response = execCaptureOutputAsString("wget --quiet -O - " .. link)
+    if not response then
+        return nil
+    end
+    local title = response:match("<title>.+</title>")
+    if not title then
+        return nil
+    end
+    return title:gsub("<title>", ""):gsub("</title>", "")
+end
+
+
+
+function curlCommand(link)
+    return "curl --insecure -w '%{url_effective}\\n %{http_code}\\n' -I -L -s -S " .. link .. " -o /dev/null"
+end
+
+
+
+function TechnicalAccuracy:checkLinks(links, message)
+    if #links > 0 then
+        pass(string.upper(message))
+    end
+    local resultsTable = {}
+    resultsTable["ftpValidLinkCount"] = 0
+    resultsTable["ftpInvalidLinkCount"] = 0
+    resultsTable["brokenLinkCount"] = 0
+    resultsTable["forbiddenLinkCount"] = 0
+    resultsTable["untitledLinkCount"] = 0
+    resultsTable["redirectedLinkCount"] = 0
+    resultsTable["internalLinkCount"] = 0
+    resultsTable["exampleLinkCount"] = 0
+    resultsTable["anchorLinkCount"] = 0
+    resultsTable["commandLinkCount"] = 0
+    resultsTable["okLinkCount"] = 0
+    resultsTable["unknownLinkCount"] = 0
+    for _, link in ipairs(links) do
+        local pageTitle = getPageTitle(link)
+        local redirectAndStatusCode = execCaptureOutputAsTable(curlCommand(link))
+        if link:startsWith("ftp://") then
+            local httpLink = link:gsub("^ftp://", "http://")
+            if execCaptureOutputAsTable(curlCommand(httpLink))[2]:trim() == self.HTTP_OK_CODE then
+                fail(link .. " uses FTP protocol, but you can replace it with HTTP and it will work.")
+                resultsTable["ftpValidLinkCount"] = resultsTable["ftpValidLinkCount"] + 1
+            else
+                fail(link .. " uses FTP protocol, and replacing it with HTTP will not work.")
+                resultsTable["ftpInvalidLinkCount"] = resultsTable["ftpInvalidLinkCount"] + 1
+            end
+        elseif redirectAndStatusCode[2]:trim() == self.ERROR_CODE then
+            fail(link .. " is broken (" .. self.ERROR_CODE .. " status code).")
+            resultsTable["brokenLinkCount"] = resultsTable["brokenLinkCount"] + 1
+        elseif redirectAndStatusCode[2]:trim() == self.FORBIDDEN_CODE then
+            fail(link .. " is forbidden (" .. self.FORBIDDEN_CODE .. " status code).")
+            resultsTable["forbiddenLinkCount"] = resultsTable["forbiddenLinkCount"] + 1
+        elseif redirectAndStatusCode[2]:trim() ~= self.HTTP_OK_CODE then
+            fail(link .. " has " .. redirectAndStatusCode[2]:trim() .. " status code.")
+            resultsTable["unknownLinkCount"] = resultsTable["unknownLinkCount"] + 1
+        elseif not pageTitle or pageTitle == "" then
+            fail(link .. " has no page title.")
+            resultsTable["untitledLinkCount"] = resultsTable["untitledLinkCount"] + 1
+        elseif redirectAndStatusCode[1] ~= cutOffLinkExtension(link):lower() and 
+                not isAnchorLink(link) then
+            fail(link .. " gets redirected.")
+            resultsTable["redirectedLinkCount"] = resultsTable["redirectedLinkCount"] + 1
+        elseif self.isLinkFromList(link:lower(), self.internalList) or 
+                self.isLinkFromList(link, self.internalList) then
+            warn(link .. " is internal.")
+            resultsTable["internalLinkCount"] = resultsTable["internalLinkCount"] + 1
+        elseif self.isLinkFromList(link:lower(), self.exampleList) or
+                self.isLinkFromList(link, self.exampleList) then
+            warn(link .. " is from example list.")
+            resultsTable["exampleLinkCount"] = resultsTable["exampleLinkCount"] + 1
+        elseif redirectAndStatusCode[1] ~= cutOffLinkExtension(link):lower() 
+                and isAnchorLink(link) then
+            warn(link .. " is an achor.")
+            resultsTable["anchorLinkCount"] = resultsTable["anchorLinkCount"] + 1
+        elseif self.isCommandLink(link) then
+            warn(link .. " is a command.")
+            resultsTable["commandLinkCount"] = resultsTable["commandLinkCount"] + 1
+        else
+            pass(link .. " is OK.")
+            resultsTable["okLinkCount"] = resultsTable["okLinkCount"] + 1
+        end
+    end
+    return resultsTable
+end
+
+
+
+function cutOffLinkExtension(link)
+    if not link:find(".html", 1, true) then
         return link
     end
+    return link:sub(1, link:find(".html", 1, true) - 1) .. link:sub(link:find(".html", 1, true) + 5)
 end
 
 
 
---
--- Check if one selected link is accessible.
---
-function tryOneLink(linkToCheck)
-    local command = TechnicalAccuracy.curlCommand .. TechnicalAccuracy.curlDisplayHttpStatusAndEffectiveURL .. linkToCheck .. " | tail -n 1"
-    local output = execCaptureOutputAsTable(command)
-    -- this function returns truth value only if:
-    -- output must be generated, it should contain just one line
-    -- and on the beginning of this line is HTTP status code 200 OK
-    return output and #output==1 and string.startsWith(output[1], TechnicalAccuracy.HTTP_OK_CODE)
-end
-
-
-
---
--- Checks all forbidden links.
---
-function TechnicalAccuracy:checkForbiddenLinks()
-    for _, link in pairs(self.forbiddenLinksTable) do
-        fail("is blacklisted. See the emender.ini file in the guide repository for blacklisted links.", link)
+function isAnchorLink(link, effectiveLink)
+    if link:startsWith("#") then
+        return true
     end
-    if #self.forbiddenLinksTable > 0 then
-        self.failure = true
+    local lastHash = link:lastIndexOf("#")
+    local lastSlash = link:lastIndexOf("/")
+    if lastHash and lastHash > lastSlash then
+        return true
     end
+    return false
 end
 
 
 
---
--- Checks all links pointing to the Customer Portal.
---
-function TechnicalAccuracy:checkCustomerPortalLinks()
-    for _, linkToCheck in ipairs(self.customerPortalLinks) do
-        yap("Checking " .. linkToCheck)
-        local command = self.curlCommand .. linkToCheck .. " | sed -n 's/<title>\\(.*\\)<\\/title>/\\1/p'"
-        local output = execCaptureOutputAsTable(command)
-        if not output or #output == 0 then
-            fail("does not work.", linkToCheck)
-            self.failure = true
-        else
-            local title = output[1]
-            if not title then
-                fail("page does not contain title", linkToCheck)
-            else
-                if title:trim():startsWith("Product Documentation") then
-                    fail("gets redirected to the product documentation landing page.", linkToCheck)
-                    self.failure = true
-                else
-                    yap("ok")
-                end
-            end
-        end
-    end
+function TechnicalAccuracy:printResults(resultsTable, name)
+    pass(string.upper("Overall results for " .. name .. " links:"))
+    fail("Valid FTP: " .. resultsTable["ftpValidLinkCount"])
+    fail("Invalid FTP: " .. resultsTable["ftpInvalidLinkCount"])
+    fail("Broken: " .. resultsTable["brokenLinkCount"])
+    fail("Forbidden: " .. resultsTable["forbiddenLinkCount"])
+    fail("Other status code: " .. resultsTable["unknownLinkCount"])
+    fail("No page title: " .. resultsTable["untitledLinkCount"])
+    fail("Redirected: " .. resultsTable["redirectedLinkCount"])
+    warn("Internal: " .. resultsTable["internalLinkCount"])
+    warn("From example list: " .. resultsTable["exampleLinkCount"])
+    warn("Anchors: " .. resultsTable["anchorLinkCount"])
+    warn("Commands: " .. resultsTable["commandLinkCount"])
+    pass("OK: " .. resultsTable["okLinkCount"])
 end
 
 
 
---
--- Checks all regular links.
---
-function TechnicalAccuracy:checkRegularLinks()
-    -- Convert list of links into string and then check all links using curl.
-    local checkedLinks = self:tryLinks(self:convertListForMultiprocess())
-
-    -- Go through all links and print the results out.
-    for linkValue, result in pairs(checkedLinks) do
-        local exitCode     = result.httpCode
-        local originalUrl  = result.originalUrl
-        local effectiveUrl = result.effectiveUrl
-        if self.isAnchor(linkValue) then
-            warn(linkValue .. " - Anchor")
-        elseif self.mailOrFileLink(linkValue) then
-            -- Mail or file link - warn
-            warn(linkValue)
-        elseif self.isLinkFromList(linkValue, self.exampleList) then
-            -- Example or localhost - OK
-            warn(linkValue .. " - Example")
-        elseif self.isLinkFromList(linkValue, self.internalList) then
-            -- Internal link - FAIL
-            fail("internal link", linkValue)
-            self.failure = true
-        else
-            -- Check exit code of curl command.
-            if exitCode == self.HTTP_OK_CODE or exitCode == self.FTP_OK_CODE then
-                -- special case for FTP, please see CCS-1278
-                if linkValue:startsWith("ftp://") then
-                    local htmlLink = ftp2httpUrl(linkValue)
-                    if tryOneLink(htmlLink) then
-                        -- ftp link is ok AND http link is ok as well
-                        -- -> display suggestion to writer that he/she should use http:// instead of ftp://
-                        fail("uses the FTP protocol. Use the HTTP protocol instead of FTP, suggested link: " .. htmlLink, linkValue)
-                        self.failure = true
-                    else
-                        -- only ftp:// link is accessible
-                        --pass(linkValue)
-                    end
-                else
-                    --pass(linkValue)
-                end
-            elseif exitCode == self.FORBIDDEN then
-                warn("403 Forbidden")
-                if linkValue then
-                    link("Forbidden link " .. linkValue, linkValue)
-                else
-                    link("Forbidden", "link not set (strange)")
-                end
-            else
-                -- the URL is not accessible -> the test should fail
-                fail("does not work.", originalUrl)
-                self.failure = true
-
-                -- if the request has been redirected to another URL, show the original URL and redirected one
-                ------ this code works, but is not required by users(?)
-                ------ if originalUrl ~= effectiveUrl then
-                ------     fail("gets redirected to the product documentation landing page", originalUrl)
-                ------     failure = true
-                ------     link("URL in document: " .. originalUrl, originalUrl)
-                ------     link("Redirected URL: " .. effectiveUrl, effectiveUrl)
-                ------ else
-                ------ -- no redirection -> show the original URL as is written in the document
-                ------     link("URL to check: " .. originalUrl, originalUrl)
-                ------ end
-            end
-        end
-    end
-end
-
-
-
---
--- Print test results in case of zero failures.
---
-function TechnicalAccuracy:printOverallResults()
-    if not self.failure then
-        if #self.allLinks == 0 then
-            if #self.customerPortalLinks == 0 then
-                pass("Congratulations! There are no links to test :)")
-            else
-                pass("Congratulations! All customer portal links (found " .. #self.customerPortalLinks .. ") work.")
-            end
-        else  -- allLinks > 0
-            if #self.customerPortalLinks == 0 then
-                pass("Congratulations! All external links (found " .. #self.allLinks .. ") work.")
-            else
-                pass("Congratulations! All external links (found " .. #self.allLinks .. ") and customer portal links (found " .. #self.customerPortalLinks .. ") work.")
-            end
-        end
-        local found = #self.allLinks + #self.customerPortalLinks
-    end
-end
-
-
-
----
---- Reports non-functional or blacklisted external links.
----
+-- Test documentation for non-functional or blacklisted external links.
 function TechnicalAccuracy.testExternalLinks()
-    TechnicalAccuracy.failure = nil
-
-    TechnicalAccuracy:checkForbiddenLinks()
-    TechnicalAccuracy:checkCustomerPortalLinks()
-    TechnicalAccuracy:checkRegularLinks()
-    TechnicalAccuracy:printOverallResults()
+    if not TechnicalAccuracy.isReady then
+        return
+    end
+    TechnicalAccuracy:checkBlacklistedLinks()
+    TechnicalAccuracy.customerPortalLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.customerPortalLinks, "Analyzing Customer Portal links...")
+    TechnicalAccuracy.regularLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.regularLinks, "Analyzing regular links...")
+    if #TechnicalAccuracy.customerPortalLinks > 0 then
+        TechnicalAccuracy:printResults(TechnicalAccuracy.customerPortalLinksResultsTable, "Customer Portal")
+    end
+    if #TechnicalAccuracy.regularLinks > 0 then
+        TechnicalAccuracy:printResults(TechnicalAccuracy.regularLinksResultsTable, "regular")
+    end
 end
-
