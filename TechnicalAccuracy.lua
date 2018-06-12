@@ -26,9 +26,9 @@ TechnicalAccuracy = {
         tags = {"DocBook", "Release"}
     },
     requires = {"wget", "curl"},
+    emenderDir = nil,
     xmlObj = nil,
     regularLinks = {},
-    language = "en-US",
     blacklistedLinks = nil,
     blacklistedLinkPatterns = {},
     blacklistedLinksTable = {},
@@ -57,14 +57,17 @@ TechnicalAccuracy = {
     okRegularLinkCount = 0
 }
 
-
-
 -- Entry point for the test.
 function TechnicalAccuracy.setUp()
-    TechnicalAccuracy.isReady = TechnicalAccuracy:checkVariables()
-    if not TechnicalAccuracy.isReady then
-        return
+    local emenderSrcDir = "/usr/local/share/emender/src"
+    if TechnicalAccuracy.emenderDir then
+        emenderSrcDir = TechnicalAccuracy.emenderDir .. "/src"
     end
+    dofile(TechnicalAccuracy.testDir .. "/lib/publican.lua")
+    dofile(TechnicalAccuracy.testDir .. "/lib/xml.lua")
+    dofile(emenderSrcDir .. "/common/string.lua")
+    local pubObj = publican.create("publican.cfg")
+    TechnicalAccuracy.xmlObj = xml.create(pubObj:findMainFile())
     TechnicalAccuracy:findLinks()
     
     -- Forbidden links passed as command line arguments.
@@ -81,45 +84,6 @@ function TechnicalAccuracy.setUp()
     end
 end
 
-
-
-function TechnicalAccuracy:checkVariables()
-    local publicanLib = getScriptDirectory() .. "lib/publican.lua"
-    local xmlLib = getScriptDirectory() .. "lib/xml.lua"
-    if not canOpenFile(publicanLib) or
-            not canOpenFile(xmlLib) then
-        return false
-    end
-    dofile(publicanLib)
-    dofile(xmlLib)
-    local publicanFile = "publican.cfg"
-    if not canOpenFile(publicanFile) then
-        return false
-    end
-    local pubObj = publican.create("publican.cfg")
-    local masterFile = pubObj:findMainFile()
-    if not canOpenFile(masterFile) then
-        return false
-    end
-    pass("Master file: " .. masterFile)
-    self.xmlObj = xml.create(masterFile)
-    return true
-end
-
-
-
-function canOpenFile(file)
-    local input = io.open(file, "r")
-    if input then
-        input:close()
-        return true
-    end
-    fail("Missing " .. file .. "...")
-    return false
-end
-
-
-
 function TechnicalAccuracy:isBlacklistedLink(link)
     for _,pattern in pairs(self.blacklistedLinkPatterns) do
         if link:find(pattern, 1, true) then
@@ -129,16 +93,12 @@ function TechnicalAccuracy:isBlacklistedLink(link)
     return false
 end
 
-
-
 function isCustomerPortalLink(link)
     return link:startsWith("http://access.redhat.com") or
             link:startsWith("https://access.redhat.com") or
             link:startsWith("http://access.qa.redhat.com") or
             link:startsWith("https://access.qa.redhat.com")
 end
-
-
 
 -- Sort links into groups.
 function TechnicalAccuracy:sortLinks(links)
@@ -155,21 +115,17 @@ function TechnicalAccuracy:sortLinks(links)
     end
 end
 
-
-
 function TechnicalAccuracy:findLinks()
     local links = self.xmlObj:getAttributesOfElement("href", "link")
     local ulinks = self.xmlObj:getAttributesOfElement("url", "ulink")
-    if links then
-        pass("<link> tags found: " .. #links)
-    else
-        pass("No <link> tags found.")
+    if not links then
+        links = {}
     end
-    if ulinks then
-        pass("<ulink> tags found: " .. #ulinks)
-    else
-        pass("No <ulink> tags found.")
+    if not ulinks then
+        ulinks = {}
     end
+    pass("<link> tags found: " .. #links)
+    pass("<ulink> tags found: " .. #ulinks)
 
     -- Sort links into groups.
     self:sortLinks(links)
@@ -178,8 +134,6 @@ function TechnicalAccuracy:findLinks()
     pass("Customer Portal links: " .. #self.customerPortalLinks)
     pass("Regular links: " .. #self.regularLinks)
 end
-
-
 
 -- Check if the link has a "command" prefix such as "mailto:".
 function TechnicalAccuracy.isCommandLink(link)
@@ -194,8 +148,6 @@ function TechnicalAccuracy.isCommandLink(link)
     return false
 end
 
-
-
 -- Check if the link is in a pattern list.
 function TechnicalAccuracy.isLinkFromList(link, patternList)
     for _, pattern in ipairs(patternList) do
@@ -206,8 +158,6 @@ function TechnicalAccuracy.isLinkFromList(link, patternList)
     return false
 end
 
-
-
 function TechnicalAccuracy:checkBlacklistedLinks()
     if #self.blacklistedLinksTable > 0 then
         fail(string.upper("Analyzing blacklisted links... See emender.ini in the documentation repository."))
@@ -216,8 +166,6 @@ function TechnicalAccuracy:checkBlacklistedLinks()
         fail(link)
     end
 end
-
-
 
 function getPageTitle(link)
     local response = execCaptureOutputAsString("wget --quiet -O - " .. link)
@@ -231,13 +179,9 @@ function getPageTitle(link)
     return title:gsub("<title>", ""):gsub("</title>", "")
 end
 
-
-
 function curlCommand(link)
-    return "curl --insecure -w '%{url_effective}\\n %{http_code}\\n' -I -L -s -S " .. link .. " -o /dev/null"
+    return "curl --insecure -w '%{url_effective}\\n %{http_code}\\n' -I -L -s -S " .. link .. " -o /dev/null 2> /dev/null"
 end
-
-
 
 function TechnicalAccuracy:checkLinks(links, message)
     if #links > 0 then
@@ -307,16 +251,12 @@ function TechnicalAccuracy:checkLinks(links, message)
     return resultsTable
 end
 
-
-
 function cutOffLinkExtension(link)
     if not link:find(".html", 1, true) then
         return link
     end
     return link:sub(1, link:find(".html", 1, true) - 1) .. link:sub(link:find(".html", 1, true) + 5)
 end
-
-
 
 function isAnchorLink(link, effectiveLink)
     if link:startsWith("#") then
@@ -329,8 +269,6 @@ function isAnchorLink(link, effectiveLink)
     end
     return false
 end
-
-
 
 function TechnicalAccuracy:printResults(resultsTable, name)
     pass(string.upper("Overall results for " .. name .. " links:"))
@@ -348,13 +286,8 @@ function TechnicalAccuracy:printResults(resultsTable, name)
     pass("OK: " .. resultsTable["okLinkCount"])
 end
 
-
-
 -- Test documentation for non-functional or blacklisted external links.
 function TechnicalAccuracy.testExternalLinks()
-    if not TechnicalAccuracy.isReady then
-        return
-    end
     TechnicalAccuracy:checkBlacklistedLinks()
     TechnicalAccuracy.customerPortalLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.customerPortalLinks, "Analyzing Customer Portal links...")
     TechnicalAccuracy.regularLinksResultsTable = TechnicalAccuracy:checkLinks(TechnicalAccuracy.regularLinks, "Analyzing regular links...")
