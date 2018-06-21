@@ -7,23 +7,22 @@ This is a test for [Emender](https://github.com/emender/emender) framework. It c
 ## How to run it
 To run the test locally, follow these steps.
 1. Download the repository to your local machine. You don't need to have the test and documentation in the same folder. In fact, it's advisable not to.
-2. Download the documentation files into a separate folder. This folder must include:
-	* publican.cfg
-		* config file for your documentation, should have a "mainfile" parameter with the name of the master file, e.g. "mainfile: master", otherwise the script will use default master filename ("master").
-    * master file 
-        * located in the "your_language/" subfolder, e.g. "en-US/"
-3. Before running the test make sure to install dependencies: curl and wget (usually included in Linux distributions, but just in case).	
+2. Download Emender framework [here](https://github.com/emender/emender).
+3. Install Emender by navigating into the source code directory and running `sudo make install`.
+4. Download documentation files into a separate folder. This folder must either include a publican.cfg file with documentation config (DocBook format) or master.adoc (AsciiDoc format).
+5. Before running the tests, make sure to install these dependencies:
 ~~~~~~~~
-sudo dnf install curl
-sudo dnf install wget
-~~~~~~~~ 
-4. You'll also need Lua installed.
+sudo dnf install curl wget lua; gem install asciidoctor
 ~~~~~~~~
-sudo dnf install lua
+6. You're ready to run the test! Through command line navigate to the documentation folder (or the folder where you want to store the results). From this folder run the following command:
 ~~~~~~~~
-5. Last piece is libraries. These can be downloaded [here](https://github.com/emender/emender-lib/tree/master/lib). You need "publican.lua" and "xml.lua". When you first run the test, it will give you an error message and you'll see the path at which these libraries should be placed.
-6. You're ready to run the test! Through Terminal navigate to the documentation folder. Then type `emend path_to_test_folder/TechnicalAccuracy.lua` and see the results. You can check available Emender parameters [here](https://github.com/emender/emender/blob/master/doc/man/man1/emend.1.pod).
-7. You can additionally provide "blacklistedLinks" as a test parameter. For this, use `--XblacklistedLinks="link1, link2, link3,..."` when running the test. You can also check out "exampleList" and "internalList".
+PATH_TO_TEST_DIR/run.sh --XdocDir=PATH_TO_DOC_DIR
+Only provide "docDir" argument if the documentation folder is different from the folder you're currently in.
+~~~~~~~~
+This will run a shell script that basically does all the dirty work before running the actual test. After running it you should see the test output on the screen, as well as a bunch of results.* files in the current folder. These files provide the results in various formats.
+7. Add any extra parameters to Emender by using them as shell script arguments. Consult [this](https://github.com/emender/emender/blob/master/doc/man/man1/emend.1.pod) page for more info.
+8. Add extra parameters to the test itself by using them as shell script arguments. Use this construct to do so: `--XparamName=paramValue`
+You can, for example, add "blacklistedLinks", "exampleList" and "internalList" in this manner: `--XblacklistedLinks="link1, link2, link3, ..."`
 
 ## License
 
